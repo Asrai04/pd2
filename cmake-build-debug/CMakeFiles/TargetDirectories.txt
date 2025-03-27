@@ -1,0 +1,3 @@
+C:/Users/ariel/CLionProjects/pd2/cmake-build-debug/CMakeFiles/pd2.dir
+C:/Users/ariel/CLionProjects/pd2/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/ariel/CLionProjects/pd2/cmake-build-debug/CMakeFiles/rebuild_cache.dir
