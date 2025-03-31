@@ -3,6 +3,7 @@
 //
 
 #include "MemoryManager.h"
+#include "BlockMemory.h"
 #include <iostream>
 #include <filesystem>
 #include <fstream>
@@ -29,13 +30,14 @@ MemoryManager::MemoryManager(int port, int memsize, const std::string& dumpFolde
 void MemoryManager::AssignMem() {
     // Convertir de MB a BYTES
     size_t byte = memsize*1024*1024;
+
     // Asignar memoria
-    void *ptr = malloc(byte);
+    reservedMem = malloc(byte);
 
     // Revisar si hay memoria disponible
-    if (ptr == NULL) {
+    if (reservedMem == nullptr) {
         printf("Malloc Error");
-        exit(0);
+        exit(1);
     }
 }
 
@@ -149,3 +151,59 @@ void MemoryManager::DumpFolder() {
         std::cerr << "Error al crear el archivo dump." << std::endl;
     }
 }
+
+// Funcion para inicializar(Crear) un bloque de Memoria
+int MemoryManager::Create(int size, const std::string& type) {
+    // Ve si hay espacio disponible
+    int actualMemory = 0;
+    for (const auto& block : listBlock) {
+        actualMemory += block.size;
+    }
+    if (actualMemory + size > memsize * 1024 * 1024) {
+        std::cerr << "No hay suficiente memoria disponible\n";
+        return -1; // Indica error
+    }
+
+    // Calcular la dirección del nuevo bloque dentro
+    void* newPtr = static_cast<char*>(reservedMem) + actualMemory;
+
+    // Crear un nuevo bloque de memoria
+    BlockMemory newBlock(listBlock.size() + 1, size, type, newPtr, 1);
+    listBlock.push_back(newBlock);
+    return newBlock.id;
+}
+
+// Funcion para guardar un valor en el bloque
+void MemoryManager::Set(int id, int value) {
+    for (auto& block : listBlock) {
+        if (block.id == id) {
+            *reinterpret_cast<int*>(block.ptr) = value; // Convertir ptr a int* antes de asignar
+        }
+    }
+}
+
+// Funcion para retornar el valor guardado
+int MemoryManager::Get(int id) {
+    for (auto& block : listBlock) {
+        if (block.id == id) {
+            return *reinterpret_cast<int*>(block.ptr);
+        }
+    }
+}
+
+// Funcion incrementa o decrementa las referencias de un puntero
+void MemoryManager::IncreaseRefCount(int id) {
+    for (auto& block : listBlock) {
+        if (block.id == id) {
+            block.refCount++;
+        }
+    }
+}
+void MemoryManager::DecreaseRefCount(int id) {
+    for (auto& block : listBlock) {
+        if (block.id == id) {
+            block.refCount--;
+        }
+    }
+}
+
