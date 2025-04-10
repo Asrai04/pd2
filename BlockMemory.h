@@ -11,11 +11,12 @@ class BlockMemory {
 public:
     int id;
     std::string type;
+    std::string value;
     int size;
     void * ptr;
     int refCount;
 
-    BlockMemory(int id, int size, std::string type, void* ptr = nullptr, int refCount = 1);
+    BlockMemory(int id, int size, std::string type, std::string value, void* ptr = nullptr, int refCount = 1);
 
 };
 

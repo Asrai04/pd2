@@ -19,14 +19,15 @@ int main(int argc, char* argv[]) { // Cuenta Cant de argumentos (argc) del tipo 
             memsize = std::stoi(argv[++i]); // asigna valor de memsize
         } else if (arg == "-dumpFolder" && i + 1 < argc) {
             // Si el string es "–dumpFolder"
-            dumpFolder = argv[++i];; // asigna dumpFolder
+            dumpFolder = argv[++i];; // asigna y dumpFolder
         }
     }
 
-    std::cout << "Puerto recibido: " << port << std::endl;
+    std::cout << "Puerto recibio: " << port << std::endl;
     std::cout << "Tamaño de memoria: " << memsize << " MB" << std::endl;
 
     MemoryManager manager(port,memsize,dumpFolder);
+    manager.DumpFolder();
     manager.InitServer();
     manager.Listen();
 
