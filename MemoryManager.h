@@ -33,6 +33,7 @@ public:
     int Get(int id);
     void IncreaseRefCount(int id);
     void DecreaseRefCount(int id);
+    void CollectGarbage();
 };
 
 

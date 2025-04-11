@@ -23,12 +23,6 @@ MemoryManager::MemoryManager(int port, int memsize, const std::string& dumpFolde
     server_fd = INVALID_SOCKET;
     new_socket = INVALID_SOCKET;
     std::vector<BlockMemory> listBlock; // Es el Memory Map, nose porque le puse ese nombre
-
-    // Crear la carpeta DumpFolder si no existe
-    if (!fs::exists(dumpFolder)) {
-        fs::create_directories(dumpFolder);
-        std::cout << "Se creo: " << dumpFolder << std::endl;
-    }
 }
 
 // Funcion para Asignar Memoria
@@ -154,8 +148,10 @@ void MemoryManager::Listen() {
             }
             else if (Funcion == "Set") { // Definir valor para un puntero
                 int id;
-                std::string value; // Obtener tipo de Dato a Crear
-                iss >> id, value;
+                std::string value;
+                iss >> id;// Obtener ID
+                std::getline(iss, value);
+                value = value.substr(value.find_first_not_of(" ")); // Quitar espacios iniciales
                 Set(id,value);
                 AddDump();
                 std::string response = "None"; // Generar respuesta
@@ -190,16 +186,15 @@ void MemoryManager::Listen() {
 
 // Funcion crea archivo dumpFolder
 void MemoryManager::DumpFolder() {
-    std::cout << "Dump" << std::endl;
     try { // Intenta crear el Folder
         if (std::filesystem::create_directory(dumpFolder)) { // Revisa si existe o No
             std::cout << "Se creo el archivo dump folder: " << dumpFolder << std::endl;
-            } else {
-                std::cout << " Dump folder ya existente" << std::endl;
-            }
-        } catch (std::filesystem::filesystem_error& e) { // Si fallo el intento, error
-            std::cout << e.what() << "Hola" << std::endl;
+        } else {
+            std::cout << " Dump folder ya existente" << std::endl;
         }
+    } catch (std::filesystem::filesystem_error& e) { // Si fallo el intento, error
+        std::cout << e.what() << std::endl;
+    }
 }
 
 // Funcion para agregar Archivos(txt) en DumpFolder
@@ -211,9 +206,9 @@ void MemoryManager::AddDump() {
         }
 
         // Obtener fecha y hora para el nombre del archivo
-        auto now = std::chrono::system_clock::now();
-        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-        std::time_t t = std::chrono::system_clock::to_time_t(now);
+        auto now = std::chrono::system_clock::now(); // Obtiene el tiempo actual del sistema
+        auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000; // Convierte en milisegundos
+        std::time_t t = std::chrono::system_clock::to_time_t(now); // Convierte al tipo de dato para manejar fechas
         std::tm tm = *std::localtime(&t);
 
         // Crear Nombre del Archivo
@@ -274,7 +269,7 @@ int MemoryManager::Create(int size, const std::string& type) {
     BlockMemory newBlock(listBlock.size() + 1, size, type, "---",newPtr, 1);
     listBlock.push_back(newBlock); // Agregar a la lista
     actualMemory += size;
-    return newBlock.id;
+        return newBlock.id;
 }
 
 // Funcion para guardar un valor en el bloque
@@ -283,6 +278,7 @@ void MemoryManager::Set(int id, std::string value) {
         if (block.id == id) {
             actualMemory += block.size;
             block.value = value;
+
             // Guarda el tipo de dato, dependiendo de su valor
             if (block.type == "int") {
                 *reinterpret_cast<int*>(block.ptr) = std::stoi(value);
@@ -333,4 +329,19 @@ void MemoryManager::DecreaseRefCount(int id) {
         }
     }
 }
-
+// Funcion que ejecuta en segundo plano(hilo) para liberar memoria con 0=refcount
+void MemoryManager::CollectGarbage() {
+    while (serverRunning) {// Bucle mientras el servidor se ejecute
+        for (auto block = listBlock.begin(); block != listBlock.end();)  { // Recorre la lista de block
+            if (block->refCount == 0) { // si un bloque no tiene referencias
+                int size = block->size;//Guardar tamaño de Dato antes de borrar
+                free(block->ptr); // libera su puntero
+                listBlock.erase(block); // Eliminar el bloque de la lista
+                actualMemory -= size; // Incrementa Memoria disponible
+                AddDump(); // Escribe dentro del Dump
+                break;
+            }
+        }
+        std::this_thread::sleep_for(5s); // Revisar cada 5secs
+    }
+}
