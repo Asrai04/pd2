@@ -17,13 +17,13 @@ namespace fs = std::filesystem;
 using namespace std;
 
 MemoryManager::MemoryManager(int port, int memsize, const std::string& dumpFolder) {  // Inicializar
-    this->port = port;
-    this->memsize = memsize;
-    this->dumpFolder = dumpFolder;
+    this->port = port; // Puerto de comunicacion entre servidor y los clientes
+    this->memsize = memsize; // tamaño de memoria asignado
+    this->dumpFolder = dumpFolder; // Nombre de la carpeta dodne se almacenan los dumps
     server_fd = INVALID_SOCKET;
-    new_socket = INVALID_SOCKET;
+    new_socket = INVALID_SOCKET; // Variables de comunicion socket
     std::vector<BlockMemory> listBlock; // Es el Memory Map, nose porque le puse ese nombre
-    std::thread garbageThread(&MemoryManager::CollectGarbage, this);
+    std::thread garbageThread(&MemoryManager::CollectGarbage, this); // Hilo para garbagecolector
     garbageThread.detach(); // Hace que corra en segundo plano sin bloquear el servidor
 }
 
@@ -106,7 +106,7 @@ void MemoryManager::Listen() {
 
         std::cout << "Cliente conectado.\n";
 
-        char buffer[1024];
+        char buffer[1024]; // Revision de mensajes del cliente
 
         while (serverRunning) {
             memset(buffer, 0, sizeof(buffer));  // Limpiar buffer
@@ -119,17 +119,17 @@ void MemoryManager::Listen() {
 
             buffer[valread] = '\0';  // Asegurarse de que el string esté bien terminado
 
-            std::string receivedMessage(buffer);
-            std::cout << "Mensaje recibido: " << buffer << std::endl;
+            std::string receivedMessage(buffer); // Convierte en string el mensaje del cliente
+            std::cout << "Mensaje recibido: " << buffer << std::endl; // Muestra el mensaje que se recibio el server del cliente
 
             // Para descomponer el mensaje recibido por el cliente
-            std::istringstream iss(receivedMessage);
-            std::string Funcion;
+            std::istringstream iss(receivedMessage); // Recibe el mensaje como string
+            std::string Funcion; // Guarda una parte del string como la funcion que se va a ejecutar
             iss >> Funcion;
 
-            std::cout << "Funcion: " << Funcion << " " << std::endl;
+            std::cout << "Funcion: " << Funcion << " " << std::endl; //Muestra la funcion a ejecutar
 
-            std::cout << actualMemory << std::endl;
+            std::cout << actualMemory << std::endl; //Muestra la memoria que le queda disponible
             if (Funcion == "Create") { // Verificar que funcion ejecutar
                 std::string type; // Obtener tipo de Dato a Crear
                 iss >> type;
@@ -152,8 +152,8 @@ void MemoryManager::Listen() {
                 send(new_socket, response.c_str(), response.size(), 0); // Enviarlo al Cliente
             }
             if (Funcion == "Set") { // Definir valor para un puntero
-                int id;
-                std::string value;
+                int id; // id que se le va a definir el valor
+                std::string value; // valor a definir
 
                 // Extraer el ID
                 if (!(iss >> id)) {
@@ -171,9 +171,9 @@ void MemoryManager::Listen() {
                 value.erase(value.find_last_not_of(" \t") + 1);
                 value.erase(0, value.find_first_not_of(" \t"));
 
-                std::cout << "Set solicitado - ID: " << id << ", Valor: '" << value << "'" << std::endl;
+                std::cout << "Set solicitado - ID: " << id << ", Valor: '" << value << "'" << std::endl; // Muestra que la operacion se ejecuto correctamente
 
-                Set(id, value);
+                Set(id, value); // llama a la funsion que se encarga de ejecuta la logica
                 std::string response = "1"; // Retornar ID del espacio creado
                 send(new_socket, response.c_str(), response.size(), 0); // Enviarlo al Cliente
             }
@@ -186,16 +186,16 @@ void MemoryManager::Listen() {
             if (Funcion == "IncreaseRefCount") {
                 int id; // Obtener tipo de Dato a Crear
                 iss >> id;
-                IncreaseRefCount(id);
-                AddDump();
+                IncreaseRefCount(id); //Llama a la funcion que aumenta el conteo de referencias en el id que se definio
+                AddDump(); //Se crea un nuevo dump file
                 std::string response = "None"; // Generar respuesta
                 send(new_socket, response.c_str(), response.size(), 0);
             }
             if (Funcion == "DecreaseRefCount") {
                 int id; // Obtener tipo de Dato a Crear
                 iss >> id;
-                DecreaseRefCount(id);
-                AddDump();
+                DecreaseRefCount(id); // Llama a la funcion que disminuye el conteo de referencias en el id que se dcefinio
+                AddDump(); // Se crea un dump file nuevo
                 std::string response = "DEATH"; // Generar respuesta
                 send(new_socket, response.c_str(), response.size(), 0);
             }
@@ -205,7 +205,7 @@ void MemoryManager::Listen() {
         closesocket(new_socket);
         std::cout << "Esperando nuevo cliente...\n";
     }
-
+    // Se apaga el server
     closesocket(server_fd);
     WSACleanup();
     consola_thread.join();
@@ -269,7 +269,7 @@ void MemoryManager::AddDump() {
                     file.width(12); file << block.refCount;
                     file << "\n";
             }
-            file.close();
+            file.close(); // cerrar el file
         } else {
             std::cerr << "Error al crear el archivo dump." << std::endl;
         }
@@ -289,7 +289,7 @@ int MemoryManager::Create(int size, const std::string& type) {
     for (const auto& block : listBlock) {
         actualMemory += block.size;
     }
-    if (actualMemory + size > memsize * 1024 * 1024) {
+    if (actualMemory + size > memsize * 1024 * 1024) { //Revisar que tengamos espacio en la memoria
         std::cerr << "No hay suficiente memoria disponible\n";
         return -1; // Indica error
     }
@@ -300,7 +300,7 @@ int MemoryManager::Create(int size, const std::string& type) {
     // Crear un nuevo bloque de memoria
     BlockMemory newBlock(listBlock.size() + 1, size, type, "---",newPtr, 1);
     listBlock.push_back(newBlock); // Agregar a la lista
-    actualMemory += size;
+    actualMemory += size; // Actualizar la actualMemory
         return newBlock.id;
 }
 
@@ -309,12 +309,12 @@ void MemoryManager::Set(int id, std::string value) {
     try {
         bool blockFound = false;
 
-        for (auto& block : listBlock) {
-            if (block.id == id) {
-                blockFound = true;
+        for (auto& block : listBlock) { // Revisar la lista de bloques de memoria
+            if (block.id == id) { // Si se encuentra el id que se busca
+                blockFound = true; // Mostrar que se encontro el bloque
 
                 std::cout << "Asignando valor '" << value << "' a bloque ID: " << id
-                          << " (Tipo: " << block.type << ")" << std::endl;
+                          << " (Tipo: " << block.type << ")" << std::endl; // muestra que la operacion se ejecuto correctamente
 
                 // Asignación directa según el tipo
                 if (block.type == "int") {
@@ -345,9 +345,9 @@ void MemoryManager::Set(int id, std::string value) {
         }
 
         if (!blockFound) {
-            std::cerr << "Error: No se encontró bloque con ID " << id << std::endl;
+            std::cerr << "Error: No se encontró bloque con ID " << id << std::endl; // en caso de no encontrar el bloque de memoria
         }
-
+    // Errores para casos especificos
     } catch (const std::invalid_argument& e) {
         std::cerr << "Error de argumento inválido: " << e.what() << std::endl;
     } catch (const std::out_of_range& e) {
@@ -357,12 +357,11 @@ void MemoryManager::Set(int id, std::string value) {
     }
 }
 
-std::string MemoryManager::Get(int id) {
-    for (auto& block : listBlock) {
-        if (block.id == id) {
-            std::cout << block.type <<  block.id << std::endl;
+std::string MemoryManager::Get(int id) { // Funcion para hacer get a un dato dentro de un bloque con un id especifico
+    for (auto& block : listBlock) { // Revisar la lista de bloques de memoria
+        if (block.id == id) { // Buscar el que cumpla con el id solicitado y buscar el tipo de dato
             if (block.type == "int") {
-                return std::to_string(*reinterpret_cast<int*>(block.ptr));
+                return std::to_string(*reinterpret_cast<int*>(block.ptr)); // Obtener el valor del puntero relacionado al id
             } else if (block.type == "long") {
                 return std::to_string(*reinterpret_cast<long*>(block.ptr));
             } else if (block.type == "float") {
@@ -382,16 +381,16 @@ std::string MemoryManager::Get(int id) {
 
 // Funcion incrementa o decrementa las referencias de un puntero
 void MemoryManager::IncreaseRefCount(int id) {
-    for (auto& block : listBlock) {
-        if (block.id == id) {
-            block.refCount++;
+    for (auto& block : listBlock) { // Recorrer la lista de bloques de memoria
+        if (block.id == id) { // Buscar el bloque relacioando al id que se busca
+            block.refCount++; // Aumentar el rfcaount de ese bloque en 1
         }
     }
 }
 void MemoryManager::DecreaseRefCount(int id) {
-    for (auto& block : listBlock) {
-        if (block.id == id) {
-            block.refCount--;
+    for (auto& block : listBlock) { // Recorrer la lista de bloques de memoria
+        if (block.id == id) { // Buscar el bloque relacioando al id que se busca
+            block.refCount--; // Disminuir el rfcaount de ese bloque en 1
         }
     }
 }
@@ -405,19 +404,19 @@ void MemoryManager::CollectGarbage() {
                 listBlock[i].ptr = nullptr; // Eliminar el bloque de la lista
                 actualMemory -= size; // Incrementa Memoria disponible
                 AddDump(); // Escribe dentro del Dump
-                DefragMem();
+                DefragMem(); // Ejecutar la funcion para prevenir la fracmentacion
             }
         }
         std::this_thread::sleep_for(5s); // Revisar cada 5secs
     }
 }
 
-void MemoryManager::DefragMem() {
-    listBlock.erase(std::remove_if(listBlock.begin(), listBlock.end(), // Ordena la lista, y elimina
-        [](const BlockMemory& block) {
-            return block.ptr == nullptr; // Si el puntero el nulo eliminar
+void MemoryManager::DefragMem() { // Funcion para solucionar la fracmentacion
+    listBlock.erase(std::remove_if(listBlock.begin(), listBlock.end(), // Ordena la lista, y elimima si cumple las siguiente condiciones
+        [](const BlockMemory& block) { // Revisar bloques
+            return block.ptr == nullptr; // Si el puntero es nulo,  se  elimina
         }), listBlock.end());
-    // Reordenar bloques según su ID o posición lógica (puede ser dirección también)
+    // Reordenar bloques según su ID
     std::sort(listBlock.begin(), listBlock.end(), [](const BlockMemory& a, const BlockMemory& b) {
         return a.id < b.id; // o usa posición de memoria simulada si tienes
     });
@@ -441,7 +440,7 @@ void MemoryManager::DefragMem() {
     AddDump();
 }
 
-void MemoryManager::Stop() {
+void MemoryManager::Stop() { // Finalizar todas la ejecuciones del servidor, Cerrar el server
     serverRunning = false;
     if (garbageThread.joinable())
         garbageThread.join();
