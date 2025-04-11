@@ -1,0 +1,5 @@
+__________________ DUMP FILE __________________ 
+ID        TYPE        SIZE      PTR               REF COUNT   
+------------------------------------------------------------
+1         double      8         0x7ffdba45fce5    1           
+2         double      8         0x7ffdba45fcf5    1           

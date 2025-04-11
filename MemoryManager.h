@@ -30,7 +30,7 @@ public:
     void Listen(); // Declarar Funcion Escuchar Cliente
     int Create(int size, const std::string& type);
     void Set(int id, std::string value);
-    int Get(int id);
+    std::string Get(int id);
     void IncreaseRefCount(int id);
     void DecreaseRefCount(int id);
     void CollectGarbage();

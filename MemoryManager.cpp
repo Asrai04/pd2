@@ -160,8 +160,7 @@ void MemoryManager::Listen() {
             else if (Funcion == "Get") {
                 int id; // Obtener tipo de Dato a Crear
                 iss >> id;
-                int value = Get(id); // Retornar ID del espacio creado
-                std::string response = std::to_string(value); // Generar respuesta
+                std::string response = Get(id); // Retornar ID del espacio creado
                 send(new_socket, response.c_str(), response.size(), 0); // Enviarlo al Cliente
             }
             else if (Funcion == "IncreaseRef") {
@@ -296,22 +295,13 @@ void MemoryManager::Set(int id, std::string value) {
 }
 
 // Funcion para retornar el valor guardado
-int MemoryManager::Get(int id) {
+std::string MemoryManager::Get(int id) {
     for (auto& block : listBlock) {
         if (block.id == id) {
-            if (block.type == "int") {
-                *reinterpret_cast<int*>(block.ptr) = std::stoi(block.value);
-            } else if (block.type == "long") {
-                *reinterpret_cast<long*>(block.ptr) = std::stol(block.value);
-            } else if (block.type == "float") {
-                *reinterpret_cast<float*>(block.ptr) = std::stof(block.value);
-            } else if (block.type == "double") {
-                *reinterpret_cast<double*>(block.ptr) = std::stod(block.value);
-            } else if (block.type == "char") {
-                *reinterpret_cast<char*>(block.ptr) = block.value[0];
-            }
+            return block.value;
         }
     }
+    return "None";
 }
 
 // Funcion incrementa o decrementa las referencias de un puntero
