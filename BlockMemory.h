@@ -1,25 +1,21 @@
-//
-// Created by sofia on 2025/3/30.
-//
-
 #ifndef BLOCKMEMORY_H
 #define BLOCKMEMORY_H
-#include <iostream>
-#include <memory_resource>
+
+#include <string>
 
 class BlockMemory {
 public:
     int id;
+    int size;
     std::string type;
     std::string value;
-    int size;
-    void * ptr;
+    void* ptr;
     int refCount;
 
-    BlockMemory(int id, int size, std::string type, std::string value, void* ptr = nullptr, int refCount = 1);
+    BlockMemory(int id, int size, std::string type, std::string value, void* ptr, int refCount);
+    void assignValueFromString(const std::string& newValue);
 
+    std::string getValueAsString() const;
 };
 
-
-
-#endif //BLOCKMEMORY_H
+#endif // BLOCKMEMORY_H

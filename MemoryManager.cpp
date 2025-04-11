@@ -77,6 +77,8 @@ void MemoryManager::InitServer() {
         return;
     }
     std::cout << "Servidor escuchando en el puerto " << port << "...\n";
+    std::thread garbageThread(&MemoryManager::CollectGarbage, this);
+    garbageThread.detach(); // 🔥 Hace que corra en segundo plano sin bloquear el servidor
 }
 
 // Fucion para escuchar al cliente
@@ -124,6 +126,9 @@ void MemoryManager::Listen() {
             std::istringstream iss(receivedMessage);
             std::string Funcion;
             iss >> Funcion;
+
+            std::cout << "Funcion: " << Funcion << " " << std::endl;
+
             std::cout << actualMemory << std::endl;
             if (Funcion == "Create") { // Verificar que funcion ejecutar
                 std::string type; // Obtener tipo de Dato a Crear
@@ -146,27 +151,51 @@ void MemoryManager::Listen() {
                 std::string response = std::to_string(id); // Generar respuesta
                 send(new_socket, response.c_str(), response.size(), 0); // Enviarlo al Cliente
             }
-            else if (Funcion == "Set") { // Definir valor para un puntero
+            if (Funcion == "Set") { // Definir valor para un puntero
                 int id;
                 std::string value;
-                iss >> id;// Obtener ID
-                std::getline(iss, value);
-                value = value.substr(value.find_first_not_of(" ")); // Quitar espacios iniciales
-                Set(id,value);
+
+                // Extraer el ID
+                if (!(iss >> id)) {
+                    std::cerr << "Error: Formato inválido para Set (falta ID)\n";
+                    continue;
+                }
+
+                // Extraer el valor (el resto de la línea después del ID)
+                if (!std::getline(iss >> std::ws, value)) { // std::ws elimina espacios iniciales
+                    std::cerr << "Error: Formato inválido para Set (falta valor)\n";
+                    continue;
+                }
+
+                // Eliminar espacios adicionales al inicio/final del valor (si los hay)
+                value.erase(value.find_last_not_of(" \t") + 1);
+                value.erase(0, value.find_first_not_of(" \t"));
+
+                std::cout << "Set solicitado - ID: " << id << ", Valor: '" << value << "'" << std::endl;
+
+
+                Set(id, value);
+
                 AddDump();
-                std::string response = "None"; // Generar respuesta
-                send(new_socket, response.c_str(), response.size(), 0);
             }
-            else if (Funcion == "Get") {
+            if (Funcion == "Get") {
                 int id; // Obtener tipo de Dato a Crear
                 iss >> id;
                 std::string response = Get(id); // Retornar ID del espacio creado
                 send(new_socket, response.c_str(), response.size(), 0); // Enviarlo al Cliente
             }
-            else if (Funcion == "IncreaseRef") {
+            if (Funcion == "IncreaseRef") {
                 int id; // Obtener tipo de Dato a Crear
                 iss >> id;
                 IncreaseRefCount(id);
+                AddDump();
+                std::string response = "None"; // Generar respuesta
+                send(new_socket, response.c_str(), response.size(), 0);
+            }
+            if (Funcion == "DecreaseRef") {
+                int id; // Obtener tipo de Dato a Crear
+                iss >> id;
+                DecreaseRefCount(id);
                 AddDump();
                 std::string response = "None"; // Generar respuesta
                 send(new_socket, response.c_str(), response.size(), 0);
@@ -234,12 +263,12 @@ void MemoryManager::AddDump() {
             file << std::string(60, '-') << "\n";
 
             for (const auto& block : listBlock) { // Escribir el contenido de la memoria (listBock)
-                file.width(10); file << block.id;
-                file.width(12); file << block.type;
-                file.width(10); file << block.size;
-                file.width(18); file << block.ptr;
-                file.width(12); file << block.refCount;
-                file << "\n";
+                    file.width(10); file << block.id;
+                    file.width(12); file << block.type;
+                    file.width(10); file << block.size;
+                    file.width(18); file << block.ptr;
+                    file.width(12); file << block.refCount;
+                    file << "\n";
             }
             file.close();
         } else {
@@ -252,6 +281,11 @@ void MemoryManager::AddDump() {
 
 // Funcion para inicializar(Crear) un bloque de Memoria
 int MemoryManager::Create(int size, const std::string& type) {
+    if (!reservedMem) {
+        std::cerr << "Error: memoria no ha sido reservada. Llama a AssignMem() antes de Create.\n";
+        return -1;
+    }
+
     // Ve si hay espacio disponible
     for (const auto& block : listBlock) {
         actualMemory += block.size;
@@ -273,32 +307,38 @@ int MemoryManager::Create(int size, const std::string& type) {
 
 // Funcion para guardar un valor en el bloque
 void MemoryManager::Set(int id, std::string value) {
-    for (auto& block : listBlock) {
-        if (block.id == id) {
-            actualMemory += block.size;
-            block.value = value;
+    try {
+        bool blockFound = false;
 
-            // Guarda el tipo de dato, dependiendo de su valor
-            if (block.type == "int") {
-                *reinterpret_cast<int*>(block.ptr) = std::stoi(value);
-            } else if (block.type == "long") {
-                *reinterpret_cast<long*>(block.ptr) = std::stol(value);
-            } else if (block.type == "float") {
-                *reinterpret_cast<float*>(block.ptr) = std::stof(value);
-            } else if (block.type == "double") {
-                *reinterpret_cast<double*>(block.ptr) = std::stod(value);
-            } else if (block.type == "char") {
-                *reinterpret_cast<char*>(block.ptr) = value[0];
+        for (auto& block : listBlock) {
+            if (block.id == id) {
+                blockFound = true;
+
+                std::cout << "Asignando valor '" << value << "' a bloque ID: " << id
+                          << " (Tipo: " << block.type << ")" << std::endl;
+
+                block.assignValueFromString(value);
+                break;
             }
         }
+
+        if (!blockFound) {
+            std::cerr << "Error: No se encontró bloque con ID " << id << std::endl;
+        }
+
+    } catch (const std::invalid_argument& e) {
+        std::cerr << "Error de argumento inválido: " << e.what() << std::endl;
+    } catch (const std::out_of_range& e) {
+        std::cerr << "Error de valor fuera de rango: " << e.what() << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Error inesperado en Set: " << e.what() << std::endl;
     }
 }
 
-// Funcion para retornar el valor guardado
 std::string MemoryManager::Get(int id) {
     for (auto& block : listBlock) {
         if (block.id == id) {
-            return block.value;
+            return block.getValueAsString(); // ✅ devuelve el contenido del puntero según el tipo
         }
     }
     return "None";
@@ -331,7 +371,7 @@ void MemoryManager::CollectGarbage() {
                 AddDump(); // Escribe dentro del Dump
                 break;
             }
+            std::this_thread::sleep_for(5s); // Revisar cada 5secs
         }
-        std::this_thread::sleep_for(5s); // Revisar cada 5secs
     }
 }

@@ -5,6 +5,7 @@
 
 int main(int argc, char* argv[]) { // Cuenta Cant de argumentos (argc) del tipo string
 
+
     int port = 0;
     int memsize = 0;
     std::string dumpFolder = "";
@@ -27,6 +28,7 @@ int main(int argc, char* argv[]) { // Cuenta Cant de argumentos (argc) del tipo 
     std::cout << "Tamaño de memoria: " << memsize << " MB" << std::endl;
 
     MemoryManager manager(port,memsize,dumpFolder);
+    manager.AssignMem();
     manager.DumpFolder();
     manager.InitServer();
     manager.Listen();
