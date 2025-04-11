@@ -405,10 +405,40 @@ void MemoryManager::CollectGarbage() {
                 listBlock[i].ptr = nullptr; // Eliminar el bloque de la lista
                 actualMemory -= size; // Incrementa Memoria disponible
                 AddDump(); // Escribe dentro del Dump
+                DefragMem();
             }
         }
         std::this_thread::sleep_for(5s); // Revisar cada 5secs
     }
+}
+
+void MemoryManager::DefragMem() {
+    listBlock.erase(std::remove_if(listBlock.begin(), listBlock.end(), // Ordena la lista, y elimina
+        [](const BlockMemory& block) {
+            return block.ptr == nullptr; // Si el puntero el nulo eliminar
+        }), listBlock.end());
+    // Reordenar bloques según su ID o posición lógica (puede ser dirección también)
+    std::sort(listBlock.begin(), listBlock.end(), [](const BlockMemory& a, const BlockMemory& b) {
+        return a.id < b.id; // o usa posición de memoria simulada si tienes
+    });
+    size_t offset = 0;
+    for (size_t i = 0; i < listBlock.size(); ++i) {
+        BlockMemory& block = listBlock[i];
+
+        // Nuevo puntero dentro del espacio reservado
+        void* newPtr = static_cast<char*>(reservedMem) + offset;
+
+        // Copiar datos al nuevo espacio
+        memmove(newPtr, block.ptr, block.size);
+
+        block.ptr = newPtr;           // Actualiza puntero
+        block.id = static_cast<int>(i + 1); // Reasigna IDs empezando desde 1
+
+        offset += block.size;         // Avanza el offset
+    }
+    actualMemory = offset; // Actualiza el uso real de memoria
+    std::cout << "Defragmem.\n";
+    AddDump();
 }
 
 void MemoryManager::Stop() {

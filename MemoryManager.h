@@ -36,6 +36,7 @@ public:
     void IncreaseRefCount(int id);
     void DecreaseRefCount(int id);
     void CollectGarbage();
+    void DefragMem();
     void Stop();
 };
 
