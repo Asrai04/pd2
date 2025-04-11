@@ -23,6 +23,8 @@ MemoryManager::MemoryManager(int port, int memsize, const std::string& dumpFolde
     server_fd = INVALID_SOCKET;
     new_socket = INVALID_SOCKET;
     std::vector<BlockMemory> listBlock; // Es el Memory Map, nose porque le puse ese nombre
+    std::thread garbageThread(&MemoryManager::CollectGarbage, this);
+    garbageThread.detach(); // Hace que corra en segundo plano sin bloquear el servidor
 }
 
 // Funcion para Asignar Memoria
@@ -77,8 +79,6 @@ void MemoryManager::InitServer() {
         return;
     }
     std::cout << "Servidor escuchando en el puerto " << port << "...\n";
-    std::thread garbageThread(&MemoryManager::CollectGarbage, this);
-    garbageThread.detach(); // 🔥 Hace que corra en segundo plano sin bloquear el servidor
 }
 
 // Fucion para escuchar al cliente
@@ -173,10 +173,9 @@ void MemoryManager::Listen() {
 
                 std::cout << "Set solicitado - ID: " << id << ", Valor: '" << value << "'" << std::endl;
 
-
                 Set(id, value);
-
-                AddDump();
+                std::string response = "1"; // Retornar ID del espacio creado
+                send(new_socket, response.c_str(), response.size(), 0); // Enviarlo al Cliente
             }
             if (Funcion == "Get") {
                 int id; // Obtener tipo de Dato a Crear
@@ -184,7 +183,7 @@ void MemoryManager::Listen() {
                 std::string response = Get(id); // Retornar ID del espacio creado
                 send(new_socket, response.c_str(), response.size(), 0); // Enviarlo al Cliente
             }
-            if (Funcion == "IncreaseRef") {
+            if (Funcion == "IncreaseRefCount") {
                 int id; // Obtener tipo de Dato a Crear
                 iss >> id;
                 IncreaseRefCount(id);
@@ -192,7 +191,7 @@ void MemoryManager::Listen() {
                 std::string response = "None"; // Generar respuesta
                 send(new_socket, response.c_str(), response.size(), 0);
             }
-            if (Funcion == "DecreaseRef") {
+            if (Funcion == "DecreaseRefCount") {
                 int id; // Obtener tipo de Dato a Crear
                 iss >> id;
                 DecreaseRefCount(id);
@@ -317,7 +316,30 @@ void MemoryManager::Set(int id, std::string value) {
                 std::cout << "Asignando valor '" << value << "' a bloque ID: " << id
                           << " (Tipo: " << block.type << ")" << std::endl;
 
-                block.assignValueFromString(value);
+                // Asignación directa según el tipo
+                if (block.type == "int") {
+                    int val = std::stoi(value);
+                    *reinterpret_cast<int*>(block.ptr) = val;
+                } else if (block.type == "long") {
+                    long val = std::stol(value);
+                    *reinterpret_cast<long*>(block.ptr) = val;
+                } else if (block.type == "float") {
+                    float val = std::stof(value);
+                    *reinterpret_cast<float*>(block.ptr) = val;
+                } else if (block.type == "double") {
+                    double val = std::stod(value);
+                    *reinterpret_cast<double*>(block.ptr) = val;
+                } else if (block.type == "char") {
+                    if (value.length() != 1) {
+                        std::cerr << "Error: el valor para char debe ser un solo carácter." << std::endl;
+                        return;
+                    }
+                    *reinterpret_cast<char*>(block.ptr) = value[0];
+                } else {
+                    std::cerr << "Tipo de dato no soportado: " << block.type << std::endl;
+                }
+
+                block.value = value; // Solo por registro interno (opcional)
                 break;
             }
         }
@@ -338,7 +360,21 @@ void MemoryManager::Set(int id, std::string value) {
 std::string MemoryManager::Get(int id) {
     for (auto& block : listBlock) {
         if (block.id == id) {
-            return block.getValueAsString(); // ✅ devuelve el contenido del puntero según el tipo
+            std::cout << block.type <<  block.id << std::endl;
+            if (block.type == "int") {
+                return std::to_string(*reinterpret_cast<int*>(block.ptr));
+            } else if (block.type == "long") {
+                return std::to_string(*reinterpret_cast<long*>(block.ptr));
+            } else if (block.type == "float") {
+                return std::to_string(*reinterpret_cast<float*>(block.ptr));
+            } else if (block.type == "double") {
+                return std::to_string(*reinterpret_cast<double*>(block.ptr));
+            } else if (block.type == "char") {
+                return std::string(1, *reinterpret_cast<char*>(block.ptr));
+            } else {
+                std::cerr << "Tipo de dato no soportado: " << block.type << std::endl;
+                return "Tipo no soportado";
+            }
         }
     }
     return "None";
@@ -362,16 +398,34 @@ void MemoryManager::DecreaseRefCount(int id) {
 // Funcion que ejecuta en segundo plano(hilo) para liberar memoria con 0=refcount
 void MemoryManager::CollectGarbage() {
     while (serverRunning) {// Bucle mientras el servidor se ejecute
-        for (auto block = listBlock.begin(); block != listBlock.end();)  { // Recorre la lista de block
-            if (block->refCount == 0) { // si un bloque no tiene referencias
-                int size = block->size;//Guardar tamaño de Dato antes de borrar
-                free(block->ptr); // libera su puntero
-                listBlock.erase(block); // Eliminar el bloque de la lista
+        for (size_t i = 0; i < listBlock.size(); ++i)  { // Recorre la lista de block
+            if (listBlock[i].refCount == 0 && listBlock[i].ptr != nullptr) { // si un bloque no tiene referencias
+                int size = listBlock[i].size;//Guardar tamaño de Dato antes de borrar
+                listBlock[i].size = 0;
+                listBlock[i].ptr = nullptr; // Eliminar el bloque de la lista
                 actualMemory -= size; // Incrementa Memoria disponible
                 AddDump(); // Escribe dentro del Dump
-                break;
             }
-            std::this_thread::sleep_for(5s); // Revisar cada 5secs
         }
+        std::this_thread::sleep_for(5s); // Revisar cada 5secs
     }
+}
+
+void MemoryManager::Stop() {
+    serverRunning = false;
+    if (garbageThread.joinable())
+        garbageThread.join();
+
+    listBlock.clear(); // Vaciar lista de bloques
+    actualMemory = 0;
+
+    if (reservedMem != nullptr) {
+        std::cout << "[INFO] Liberando memoria reservada principal.\n";
+        free(reservedMem); // Liberar el bloque grande
+        reservedMem = nullptr;
+    }
+
+    AddDump(); // Si llevas registro de limpieza
+    free(reservedMem); // ← aquí sí puedes
+    reservedMem = nullptr;
 }

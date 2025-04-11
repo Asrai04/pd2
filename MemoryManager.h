@@ -7,6 +7,7 @@
 #include <winsock2.h>  // Incluye Winsock
 
 #include "BlockMemory.h"
+#include <thread>
 
 #ifndef MEMORYMANAGER_H
 #define MEMORYMANAGER_H
@@ -21,6 +22,7 @@ private:
     std::vector<BlockMemory> listBlock; // Lista de bloques de memoria
     SOCKET server_fd; // Socket para el servidor
     SOCKET new_socket; // Socket del cliente
+    std::thread garbageThread;
 public:
     MemoryManager(int port, int memsize, const std::string& dumpFolder); // Declarar Constructor
     void AssignMem(); // Declarar Funcion Asigar Memoria
@@ -34,6 +36,7 @@ public:
     void IncreaseRefCount(int id);
     void DecreaseRefCount(int id);
     void CollectGarbage();
+    void Stop();
 };
 
 
