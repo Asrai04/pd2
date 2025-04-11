@@ -196,7 +196,7 @@ void MemoryManager::Listen() {
                 iss >> id;
                 DecreaseRefCount(id);
                 AddDump();
-                std::string response = "None"; // Generar respuesta
+                std::string response = "DEATH"; // Generar respuesta
                 send(new_socket, response.c_str(), response.size(), 0);
             }
         }
